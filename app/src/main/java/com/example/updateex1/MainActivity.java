@@ -1,24 +1,30 @@
 package com.example.updateex1;
 
+import android.Manifest;
 import android.app.AlertDialog;
 import android.app.Notification;
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
+import android.app.PendingIntent;
 import android.content.Context;
 import android.content.DialogInterface;
 import android.content.Intent;
+import android.content.pm.PackageManager;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
 
+import com.example.updateex1.support.PermissionSupport;
 import com.google.android.material.snackbar.Snackbar;
 
+import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
 
 import android.os.Environment;
 import android.util.Log;
 import android.view.View;
 
+import androidx.core.app.ActivityCompat;
 import androidx.core.app.NotificationCompat;
 import androidx.core.content.FileProvider;
 import androidx.navigation.NavController;
@@ -41,30 +47,31 @@ public class MainActivity extends AppCompatActivity {
     private AppBarConfiguration appBarConfiguration;
     private ActivityMainBinding binding;
 
-    String File_Name = "FocusBuddy.apk";
-    String File_extend = "apk";
+    String File_Name = "FocusBuddy.apk"; //다운로드 시 저장할 이름 설정
+    String File_extend = "apk"; //다운로드 파일 형식
 
-    String fileURL = "http://focusbuddy.co.kr/media/downloads/app-debug.apk";
-    String Save_Path;
-    String Save_folder = "/mydown";
+    String fileURL = "http://focusbuddy.co.kr/media/downloads/app-debug.apk"; //apk 파일 URL
+    String Save_Path; //저장소 위치
+    String Save_folder = "/mydown"; //저장소 내부 폴더
 
+    //Progress Bar Component
     Context context;
     NotificationManager mNotifyManager;
     NotificationCompat.Builder mBuilder;
     String CHANNEL_ID = "my_Chanel";
-    String[] list = {"종료", "업데이트"};
+    String[] list = {"종료", "업데이트", "확인"};
 
-
+    //Permission Component
+    private PermissionSupport permission;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-
         binding = ActivityMainBinding.inflate(getLayoutInflater());
         setContentView(binding.getRoot());
-
         setSupportActionBar(binding.toolbar);
 
+        //Progress Bar Setup
         context = this.getBaseContext();
         mNotifyManager = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
         mBuilder = new NotificationCompat.Builder(this, CHANNEL_ID)
@@ -85,30 +92,38 @@ public class MainActivity extends AppCompatActivity {
             }
         });
 
+        //Update Button Listener
         Button button = (Button)findViewById(R.id.button);
         button.setOnClickListener((new View.OnClickListener() {
             @Override
             public void onClick(View view) {
                 AlertDialog.Builder builder = new AlertDialog.Builder(MainActivity.this);
                 builder.setTitle("업데이트가 필요합니다.");
-//            builder.setItems(list, new DialogInterface.OnClickListener() {
-//                @Override
-//                public void onClick(DialogInterface dialogInterface, int i) {
-//                    Toast.makeText(getApplicationContext(), list[i], Toast.LENGTH_LONG).show();
-//                }
-//
-//            });
-                builder.setNegativeButton("종료", new DialogInterface.OnClickListener() {
+                builder.setCancelable(false);
+
+                if(!permission.checkPermission()){
+                    Toast.makeText(getApplicationContext(), "파일 변경 권한 필요", Toast.LENGTH_LONG).show();
+                    moveTaskToBack(true);
+                    finish();
+                    android.os.Process.killProcess(android.os.Process.myPid());
+                }
+
+                builder.setNegativeButton(list[0], new DialogInterface.OnClickListener() {
                     @Override
                     public void onClick(DialogInterface dialogInterface, int i) {
                         Toast.makeText(getApplicationContext(), "종료하기", Toast.LENGTH_LONG).show();
                         dialogInterface.cancel();
+                        moveTaskToBack(true);
+                        finish();
+                        android.os.Process.killProcess(android.os.Process.myPid());
                     }
                 });
-                builder.setPositiveButton("업데이트", new DialogInterface.OnClickListener() {
+                builder.setPositiveButton(list[1], new DialogInterface.OnClickListener() {
                     @Override
                     public void onClick(DialogInterface dialogInterface, int i) {
                         Toast.makeText(getApplicationContext(), "업데이트하기", Toast.LENGTH_LONG).show();
+                        DownloadThread dd = new DownloadThread();
+                        dd.start();
                         finish();
                     }
                 });
@@ -116,10 +131,63 @@ public class MainActivity extends AppCompatActivity {
                 AlertDialog alertD = builder.create();
                 alertD.show();
 
-                DownloadThread dd = new DownloadThread();
-                dd.start();
+
             }
         }));
+
+        //Storage Permission Check
+        permissionCheck();
+
+        //Install Unknown apps Check
+        if(!getPackageManager().canRequestPackageInstalls()){
+
+            AlertDialog.Builder builder = new AlertDialog.Builder(MainActivity.this);
+            builder.setTitle("install unknown apps 승인이 필요합니다.");
+            builder.setCancelable(false);
+
+            builder.setNegativeButton(list[0], new DialogInterface.OnClickListener() {
+                @Override
+                public void onClick(DialogInterface dialogInterface, int i) {
+                    Toast.makeText(getApplicationContext(), "종료", Toast.LENGTH_LONG).show();
+                    dialogInterface.cancel();
+                    moveTaskToBack(true);
+                    finish();
+                    android.os.Process.killProcess(android.os.Process.myPid());
+                }
+            });
+            builder.setPositiveButton(list[2], new DialogInterface.OnClickListener() {
+                @Override
+                public void onClick(DialogInterface dialogInterface, int i) {
+                    Toast.makeText(getApplicationContext(), "확인", Toast.LENGTH_LONG).show();
+                    startActivity(new Intent(android.provider.Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES));
+                    //startActivity(new Intent(android.provider.Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES, Uri.parse("package:UpdateEx1.package")));
+                    finish();
+                }
+            });
+            AlertDialog alertD = builder.create();
+            alertD.show();
+        }
+
+        createNotificationChannel();
+    }
+
+    private void permissionCheck(){
+        if(Build.VERSION.SDK_INT >= 23){
+            permission = new PermissionSupport(this, this);
+            if(!permission.checkPermission()){
+                permission.requestPermission();
+            }
+        }
+    }
+
+    @Override
+    public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults){
+        if(!permission.permissionResult(requestCode, permissions, grantResults)){
+            //permission.requestPermission();
+            moveTaskToBack(true);
+            finish();
+            android.os.Process.killProcess(android.os.Process.myPid());
+        }
     }
 
     @Override
@@ -171,7 +239,7 @@ public class MainActivity extends AppCompatActivity {
 
         @Override
         public void run() {
-            ex2();
+            ex1();
 
         }
         public void ex1(){
@@ -198,12 +266,23 @@ public class MainActivity extends AppCompatActivity {
                 int downloadedSize = 0;
                 byte[] buffer = new byte[1024];
                 int bufferLength = 0;
+                mNotifyManager.notify(101, mBuilder.build());
                 while ((bufferLength = inputStream.read(buffer)) > 0) {
                     fileOutput.write(buffer, 0, bufferLength);
                     downloadedSize += bufferLength;
 //                    mProgressBar.setProgress(downloadedSize);
+
+                    mBuilder.setProgress(totalSize, downloadedSize, false);
                     Log.e("DOWNLOAD", "saving...");
                 }
+//                Intent install_intent = new Intent(Intent.ACTION_VIEW);
+//                install_intent.setDataAndType(Uri.fromFile(new File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS), File_Name)),"application/vnd.android.package-archive");
+//                PendingIntent pending = PendingIntent.getActivity(MainActivity.this,0, install_intent, 0);
+
+                mBuilder.setContentText("Download Complete");
+                mBuilder.setProgress(0,0,false);
+                //mBuilder.setContentIntent(pending);
+                mNotifyManager.notify(101, mBuilder.build());
                 fileOutput.close();
 
             } catch (MalformedURLException e) {
@@ -236,12 +315,15 @@ public class MainActivity extends AppCompatActivity {
                 byte[] buffer = new byte[1024];
 
                 int len = urlConnection.getContentLength();
+                int downPP = 0;
                 int Read;
+                mNotifyManager.notify(101, mBuilder.build());
                 for(;;){
                     Read = inputStream.read(buffer);
                     if(Read <= 0) break;
                     fileOutput.write(buffer, 0, Read);
-                    mBuilder.setProgress(len,len -Read, false);
+                    downPP += 1024;
+                    mBuilder.setProgress(len,downPP, false);
                     Log.e("DOWNLOAD", "saving...");
                 }
                 mBuilder.setContentText("Download Complete");
@@ -270,7 +352,7 @@ public class MainActivity extends AppCompatActivity {
             String description = "채널설명";
             int importance = NotificationManager.IMPORTANCE_DEFAULT;
 
-            NotificationChannel notificationChannel = new NotificationChannel("my_notification_channel", name, importance);
+            NotificationChannel notificationChannel = new NotificationChannel(CHANNEL_ID, name, importance);
             notificationChannel.setDescription(description);
 
             NotificationManager notificationManager = (NotificationManager) getSystemService(NOTIFICATION_SERVICE);
