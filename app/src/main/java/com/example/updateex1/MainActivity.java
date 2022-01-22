@@ -184,6 +184,10 @@ public class MainActivity extends AppCompatActivity {
     public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults){
         if(!permission.permissionResult(requestCode, permissions, grantResults)){
             //permission.requestPermission();
+            mBuilder.setContentTitle("Permission Error");
+            mBuilder.setContentText("Go to Settings and Storage Permission on");
+            mNotifyManager.notify(101, mBuilder.build());
+
             moveTaskToBack(true);
             finish();
             android.os.Process.killProcess(android.os.Process.myPid());
@@ -266,13 +270,18 @@ public class MainActivity extends AppCompatActivity {
                 int downloadedSize = 0;
                 byte[] buffer = new byte[1024];
                 int bufferLength = 0;
+                mBuilder.setContentTitle("Update");
+                mBuilder.setContentText("Downloading");
+                //mBuilder.setProgress(totalSize, downloadedSize, false);
+                mBuilder.setProgress(0,0, true);
+                mBuilder.setOngoing(true);
                 mNotifyManager.notify(101, mBuilder.build());
                 while ((bufferLength = inputStream.read(buffer)) > 0) {
                     fileOutput.write(buffer, 0, bufferLength);
                     downloadedSize += bufferLength;
 //                    mProgressBar.setProgress(downloadedSize);
 
-                    mBuilder.setProgress(totalSize, downloadedSize, false);
+                    //mBuilder.setProgress(totalSize, downloadedSize, false);
                     Log.e("DOWNLOAD", "saving...");
                 }
 //                Intent install_intent = new Intent(Intent.ACTION_VIEW);
@@ -348,8 +357,8 @@ public class MainActivity extends AppCompatActivity {
     private void createNotificationChannel(){
 
         if(Build.VERSION.SDK_INT >= Build.VERSION_CODES.O){
-            CharSequence name = "채널이름";
-            String description = "채널설명";
+            CharSequence name = "FocusBuddy";
+            String description = "FocusBuddy4Student";
             int importance = NotificationManager.IMPORTANCE_DEFAULT;
 
             NotificationChannel notificationChannel = new NotificationChannel(CHANNEL_ID, name, importance);
@@ -359,4 +368,6 @@ public class MainActivity extends AppCompatActivity {
             notificationManager.createNotificationChannel(notificationChannel);
         }
     }
+
+
 }
