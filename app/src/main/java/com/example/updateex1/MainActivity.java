@@ -75,8 +75,10 @@ public class MainActivity extends AppCompatActivity {
 
     private DownloadManager mDownloadManager;
 
-    private String outputFilePath = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS) + File_Name;
+    public String outputFilePath = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS + "/mydown") + "/"+File_Name;
     private Long mDownloadQueueId;
+    private BroadcastReceiver downloadCompleteReceiver;
+
 
 
 
@@ -194,6 +196,44 @@ public class MainActivity extends AppCompatActivity {
         }
 
         createNotificationChannel();
+
+        downloadCompleteReceiver = new BroadcastReceiver() {
+            @Override
+            public void onReceive(Context context, Intent intent) {
+
+                long reference = intent.getLongExtra(DownloadManager.EXTRA_DOWNLOAD_ID, -1);
+
+                if(mDownloadQueueId == reference){
+                    DownloadManager.Query query = new DownloadManager.Query();  // 다운로드 항목 조회에 필요한 정보 포함
+                    query.setFilterById(reference);
+                    Cursor cursor = mDownloadManager.query(query);
+
+                    cursor.moveToFirst();
+
+                    int columnIndex = cursor.getColumnIndex(DownloadManager.COLUMN_STATUS);
+                    int columnReason = cursor.getColumnIndex(DownloadManager.COLUMN_REASON);
+
+                    int status = cursor.getInt(columnIndex);
+                    int reason = cursor.getInt(columnReason);
+
+                    cursor.close();
+
+                    switch (status) {
+                        case DownloadManager.STATUS_SUCCESSFUL :
+                            Toast.makeText(context, "다운로드를 완료하였습니다.", Toast.LENGTH_SHORT).show();
+                            break;
+
+                        case DownloadManager.STATUS_PAUSED :
+                            Toast.makeText(context, "다운로드가 중단되었습니다.", Toast.LENGTH_SHORT).show();
+                            break;
+
+                        case DownloadManager.STATUS_FAILED :
+                            Toast.makeText(context, "다운로드가 취소되었습니다.", Toast.LENGTH_SHORT).show();
+                            break;
+                    }
+                }
+            }
+        };
     }
 
     private void permissionCheck(){
@@ -277,6 +317,8 @@ public class MainActivity extends AppCompatActivity {
                 URL url = new URL(fileURL);
 
                 HttpURLConnection urlConnection = (HttpURLConnection) url.openConnection();
+                urlConnection.setRequestProperty("Connection", "keep-alive");
+                urlConnection.setRequestProperty("Keep-Alive", "timeout=5, max=100");
 
 
                 urlConnection.connect();
@@ -379,22 +421,39 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
-    private void apkDownload(){
-        File file = new File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS), File_Name);
+    @Override
+    public void onResume(){
+        super.onResume();
+        IntentFilter completeFilter = new IntentFilter(DownloadManager.ACTION_DOWNLOAD_COMPLETE);
+        registerReceiver(downloadCompleteReceiver, completeFilter);
+    }
 
-        if(file.exists()){
-            file.delete();
+    @Override
+    public void onPause(){
+        super.onPause();
+        unregisterReceiver(downloadCompleteReceiver);
+    }
+
+    private void apkDownload(){
+//        File file = new File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS), File_Name);
+//
+//        if(file.exists()){
+//            file.delete();
+//        }
+        File ooFile = new File(outputFilePath);
+        if(ooFile.getParentFile().exists()){
+            ooFile.getParentFile().mkdirs();
         }
         DownloadManager mgr = (DownloadManager) context.getSystemService(Context.DOWNLOAD_SERVICE);
         DownloadManager.Request request = new DownloadManager.Request(Uri.parse(fileURL))
                 .setTitle(File_Name)
                 .setDescription("Downloading")
                 .setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
-                .setDestinationUri(Uri.fromFile(file))
+                .setDestinationUri(Uri.fromFile(ooFile))
 //                .setDestinationUri(Uri.parse(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS).toString()))
-                .setRequiresCharging(false)
+//                .setRequiresCharging(false)
                 .setAllowedOverMetered(true)
-                .setAllowedOverRoaming(true)
+//                .setAllowedOverRoaming(true)
                 .setVisibleInDownloadsUi(true);
 
         long downloadId = mgr.enqueue(request);
