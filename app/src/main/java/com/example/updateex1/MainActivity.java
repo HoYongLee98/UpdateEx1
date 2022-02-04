@@ -1,15 +1,21 @@
 package com.example.updateex1;
 
 import android.Manifest;
+import static android.content.ContentValues.TAG;
 import android.app.AlertDialog;
+import android.app.DownloadManager;
 import android.app.Notification;
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
 import android.app.PendingIntent;
+import android.content.BroadcastReceiver;
+import android.content.ContentValues;
 import android.content.Context;
 import android.content.DialogInterface;
 import android.content.Intent;
+import android.content.IntentFilter;
 import android.content.pm.PackageManager;
+import android.database.Cursor;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
@@ -37,10 +43,12 @@ import com.example.updateex1.databinding.ActivityMainBinding;
 import android.view.Menu;
 import android.view.MenuItem;
 import android.widget.Button;
+import android.widget.EditText;
 import android.widget.Toast;
 
 import java.io.*;
 import java.net.*;
+import java.util.List;
 
 public class MainActivity extends AppCompatActivity {
 
@@ -52,6 +60,7 @@ public class MainActivity extends AppCompatActivity {
 
     String fileURL = "http://focusbuddy.co.kr/media/downloads/app-debug.apk"; //apk 파일 URL
     String Save_Path; //저장소 위치
+    Uri Save_Uri;
     String Save_folder = "/mydown"; //저장소 내부 폴더
 
     //Progress Bar Component
@@ -60,6 +69,16 @@ public class MainActivity extends AppCompatActivity {
     NotificationCompat.Builder mBuilder;
     String CHANNEL_ID = "my_Chanel";
     String[] list = {"종료", "업데이트", "확인"};
+
+    private EditText downloadUriExt;
+    private Button downloadBtn;
+
+    private DownloadManager mDownloadManager;
+
+    private String outputFilePath = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS) + File_Name;
+    private Long mDownloadQueueId;
+
+
 
     //Permission Component
     private PermissionSupport permission;
@@ -91,7 +110,9 @@ public class MainActivity extends AppCompatActivity {
                         .setAction("Action", null).show();
             }
         });
-
+        //Update APK 다운로드 완료 시 실행
+//        registerReceiver(downloadCompleteReceiver,new IntentFilter(DownloadManager.ACTION_DOWNLOAD_COMPLETE));
+        
         //Update Button Listener
         Button button = (Button)findViewById(R.id.button);
         button.setOnClickListener((new View.OnClickListener() {
@@ -124,7 +145,11 @@ public class MainActivity extends AppCompatActivity {
                         Toast.makeText(getApplicationContext(), "업데이트하기", Toast.LENGTH_LONG).show();
                         DownloadThread dd = new DownloadThread();
                         dd.start();
-                        finish();
+//                        URLDownloading(Uri.parse(fileURL));
+//                        apkDownload();
+//                        downloadUpdate();
+//                        Updatetest();
+                        //finish();
                     }
                 });
 
@@ -161,7 +186,7 @@ public class MainActivity extends AppCompatActivity {
                     Toast.makeText(getApplicationContext(), "확인", Toast.LENGTH_LONG).show();
                     startActivity(new Intent(android.provider.Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES));
                     //startActivity(new Intent(android.provider.Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES, Uri.parse("package:UpdateEx1.package")));
-                    finish();
+//                    finish();
                 }
             });
             AlertDialog alertD = builder.create();
@@ -352,6 +377,200 @@ public class MainActivity extends AppCompatActivity {
             Log.e("DOWNLOAD", "InstallAPK Method Called");
             installApk();
         }
+    }
+
+    private void apkDownload(){
+        File file = new File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS), File_Name);
+
+        if(file.exists()){
+            file.delete();
+        }
+        DownloadManager mgr = (DownloadManager) context.getSystemService(Context.DOWNLOAD_SERVICE);
+        DownloadManager.Request request = new DownloadManager.Request(Uri.parse(fileURL))
+                .setTitle(File_Name)
+                .setDescription("Downloading")
+                .setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
+                .setDestinationUri(Uri.fromFile(file))
+//                .setDestinationUri(Uri.parse(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS).toString()))
+                .setRequiresCharging(false)
+                .setAllowedOverMetered(true)
+                .setAllowedOverRoaming(true)
+                .setVisibleInDownloadsUi(true);
+
+        long downloadId = mgr.enqueue(request);
+        Log.d("Downloade", "path : ");
+    }
+
+//    @Override
+//    public void onResume(){
+//        super.onResume();
+//        IntentFilter completeFilter = new IntentFilter(DownloadManager.ACTION_DOWNLOAD_COMPLETE);
+//        registerReceiver(downloadCompleteReceiver, completeFilter);
+//    }
+//
+//    @Override
+//    public void onPause(){
+//        super.onPause();
+//        unregisterReceiver(downloadCompleteReceiver);
+//    }
+
+//    @Override
+//    public void onDestroy() {
+//        super.onDestroy();
+//        unregisterReceiver(downloadCompleteReceiver);
+//    }
+
+//    private BroadcastReceiver downloadCompleteReceiver = new BroadcastReceiver() {
+//        @Override
+//        public void onReceive(Context context, Intent intent) {
+//
+//            long reference = intent.getLongExtra(DownloadManager.EXTRA_DOWNLOAD_ID, -1);
+//
+//            if (mDownloadQueueId == reference) {
+//                //installApk();
+//                Toast.makeText(MainActivity.this, "Download Completed", Toast.LENGTH_SHORT).show();
+//
+//            }
+//        }
+//    };
+
+
+
+//    private BroadcastReceiver downloadCompleteReceiver = new BroadcastReceiver() {
+//        @Override
+//        public void onReceive(Context context, Intent intent) {
+//
+//            long reference = intent.getLongExtra(DownloadManager.EXTRA_DOWNLOAD_ID, -1);
+//
+//            if(mDownloadQueueId == reference){
+//                DownloadManager.Query query = new DownloadManager.Query();  // 다운로드 항목 조회에 필요한 정보 포함
+//                query.setFilterById(reference);
+//                Cursor cursor = mDownloadManager.query(query);
+//
+//                cursor.moveToFirst();
+//
+//                int columnIndex = cursor.getColumnIndex(DownloadManager.COLUMN_STATUS);
+//                int columnReason = cursor.getColumnIndex(DownloadManager.COLUMN_REASON);
+//
+//                int status = cursor.getInt(columnIndex);
+//                int reason = cursor.getInt(columnReason);
+//
+//                cursor.close();
+//
+//                switch (status) {
+//                    case DownloadManager.STATUS_SUCCESSFUL :
+//                        Toast.makeText(context, "다운로드를 완료하였습니다.", Toast.LENGTH_SHORT).show();
+//                        break;
+//
+//                    case DownloadManager.STATUS_PAUSED :
+//                        Toast.makeText(context, "다운로드가 중단되었습니다.", Toast.LENGTH_SHORT).show();
+//                        break;
+//
+//                    case DownloadManager.STATUS_FAILED :
+//                        Toast.makeText(context, "다운로드가 취소되었습니다.", Toast.LENGTH_SHORT).show();
+//                        break;
+//                }
+//            }
+//        }
+//    };
+
+
+
+    private void URLDownloading(Uri url) {
+
+        if (mDownloadManager == null) {
+            mDownloadManager = (DownloadManager) context.getSystemService(Context.DOWNLOAD_SERVICE);
+        }
+
+        File outputFile = new File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS), File_Name);
+
+//        if (!outputFile.getParentFile().exists()) {
+//            outputFile.getParentFile().mkdirs();
+//        }
+//        if(outputFile.exists()){
+//            outputFile.delete();
+//        }
+
+//        Uri downloadUri = url;
+
+        DownloadManager.Request request = new DownloadManager.Request(url);
+//        mDownloadQueueId = mDownloadManager.enqueue(request);
+//        List<String> pathSegmentList = downloadUri.getPathSegments();
+//        request.setTitle(File_Name);
+
+        request.setDestinationUri(Uri.fromFile(outputFile))
+//        request.setDestinationInExternalFilesDir(context, Environment.DIRECTORY_DOWNLOADS, "app-debug.apk")
+//        Log.e("asdf", Uri.fromFile(outputFile).toString());
+//                .setDestinationUri(Uri.parse(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS).toString()))
+                .setAllowedOverMetered(true)
+                .setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
+                .setAllowedOverMetered(true)
+                .setDescription("Updating")
+                .setRequiresCharging(false)
+                .setAllowedOverRoaming(true)
+                .setMimeType("application/vnd.android.package-archive")
+                .setVisibleInDownloadsUi(true);
+
+        mDownloadQueueId = mDownloadManager.enqueue(request);
+    }
+
+    public void downloadUpdate() {
+        DownloadManager dm = (DownloadManager) getSystemService(DOWNLOAD_SERVICE);
+        String destination = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS) + "/";
+        String fileName = File_Name;
+        destination += fileName;
+//        final Uri uri = Uri.parse("file://" + destination);
+//        Uri uri = Uri.parse(destination);
+
+//        File file = new File(destination);
+        File file = new File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS), File_Name);
+        Uri uri = Uri.fromFile(file);
+
+        if (file.exists())
+            file.delete();
+
+//        DownloadManager.Request request = new DownloadManager.Request(
+//                Uri.parse(getIntent().getStringExtra(fileURL)));
+        DownloadManager.Request request = new DownloadManager.Request(Uri.parse(fileURL));
+        request.setDestinationUri(uri);
+        dm.enqueue(request);
+
+        String finalDestination = destination;
+        BroadcastReceiver onComplete = new BroadcastReceiver() {
+            public void onReceive(Context context, Intent intent) {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                    Uri contentUri = FileProvider.getUriForFile(context, BuildConfig.APPLICATION_ID + ".provider", new File(finalDestination));
+                    Intent openFileIntent = new Intent(Intent.ACTION_VIEW);
+                    openFileIntent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+                    openFileIntent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP);
+                    openFileIntent.setData(contentUri);
+                    startActivity(openFileIntent);
+                    unregisterReceiver(this);
+                    finish();
+                } else {
+                    Intent install = new Intent(Intent.ACTION_VIEW);
+                    install.setFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP);
+                    install.setDataAndType(uri,
+                            "application/vnd.android.package-archive");
+                    startActivity(install);
+                    unregisterReceiver(this);
+                    finish();
+                }
+            }
+        };
+        registerReceiver(onComplete, new IntentFilter(DownloadManager.ACTION_DOWNLOAD_COMPLETE));
+    }
+
+    public void Updatetest(){
+        DownloadManager mDownloadManager = (DownloadManager) getSystemService(DOWNLOAD_SERVICE);
+        File file = new File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS), File_Name);
+        if (file.exists()){
+            file.delete();
+        }
+        DownloadManager.Request request = new DownloadManager.Request(Uri.parse(fileURL))
+                .setDestinationUri(Uri.fromFile(file))
+                .setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED);
+        mDownloadManager.enqueue(request);
     }
 
     private void createNotificationChannel(){

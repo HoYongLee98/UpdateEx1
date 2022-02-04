@@ -23,7 +23,8 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.UpdateEx1"
         android:usesCleartextTraffic="true"
-        android:requestLegacyExternalStorage="true">
+        android:requestLegacyExternalStorage="true"
+        android:largeHeap="true">
 
         <provider
             android:name="androidx.core.content.FileProvider"
@@ -34,6 +35,11 @@
                 android:name="android.support.FILE_PROVIDER_PATHS"
                 android:resource="@xml/filepaths" />
         </provider>
+        <receiver android:name="packageName.DownloadReceiver" android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.DOWNLOAD_COMPLETE"/>
+            </intent-filter>
+        </receiver>
 
         <activity
             android:name=".MainActivity"
